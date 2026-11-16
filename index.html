@@ -33,8 +33,11 @@
   <div id="player-container"></div>
 
   <script>
-    // Cole aqui a URL /exec do seu Google Apps Script (Passo 1)
+    // 1. Cole aqui a URL /exec do seu Google Apps Script
     const API_LIST_URL = "https://script.google.com/macros/s/AKfycbynNS_4tqQ-RgRu8j9G4l9__sfIXsvXluA_2m0vsLeiFqzQvG-WqBjmzhftZmKTWl9-/exec";
+    
+    // 2. Cole aqui a sua Chave de API do Google Cloud (com Google Drive API ativada)
+    const GOOGLE_API_KEY = "AIzaSyBgq0go75VtSQBtQb7QYS5udKOZgRF9WB4";
     
     const IMAGE_DURATION_MS = 180000; // 3 minutos por imagem
     const REFRESH_INTERVAL_MS = 300000; // Verifica novos arquivos a cada 5 minutos
@@ -72,12 +75,12 @@
       container.innerHTML = '';
 
       const item = mediaList[currentIndex];
-      // Chama a API Route da própria Vercel (/api/stream) para evitar bloqueios de CORS/CORB
-      const mediaUrl = `/api/stream?id=${item.id}`;
+      // Endpoint oficial da Drive API v3: entrega stream puro com suporte a Range e sem CORB
+      const directMediaUrl = `https://www.googleapis.com/drive/v3/files/${item.id}?alt=media&key=${GOOGLE_API_KEY}`;
 
       if (item.type === 'image') {
         const img = document.createElement('img');
-        img.src = mediaUrl;
+        img.src = `https://lh3.googleusercontent.com/d/${item.id}`;
         img.onerror = nextMedia;
         container.appendChild(img);
 
@@ -85,17 +88,16 @@
       } 
       else if (item.type === 'video') {
         const video = document.createElement('video');
-        video.src = mediaUrl;
+        video.src = directMediaUrl;
         video.autoplay = true;
-        video.muted = true; // Garante autoplay imediato em qualquer navegador/TV
+        video.muted = true;
         video.playsInline = true;
         
-        // Avança exatamente no milissegundo em que o vídeo termina
+        // Avança no exato milissegundo em que o vídeo termina
         video.onended = nextMedia;
         
-        // Se ocorrer falha no arquivo, pula sem travar a tela
-        video.onerror = () => {
-          console.error("Erro ao reproduzir vídeo:", item.name);
+        video.onerror = (e) => {
+          console.error("Erro ao carregar vídeo via API v3:", item.name, e);
           nextMedia();
         };
 
@@ -109,7 +111,6 @@
       playCurrentMedia();
     }
 
-    // Inicia o carrossel
     fetchMediaList();
   </script>
 </body>
