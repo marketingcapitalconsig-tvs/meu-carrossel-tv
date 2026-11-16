@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Carrossel Digital Signage</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      background-color: #000;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #player-container {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    img, video {
+      width: 100vw;
+      height: 100vh;
+      object-fit: contain;
+    }
+  </style>
+</head>
+<body>
+  <div id="player-container"></div>
+
+  <script>
+    // Cole aqui a URL /exec do seu Google Apps Script (Passo 1)
+    const API_LIST_URL = "https://script.google.com/macros/s/AKfycbynNS_4tqQ-RgRu8j9G4l9__sfIXsvXluA_2m0vsLeiFqzQvG-WqBjmzhftZmKTWl9-/exec";
+    
+    const IMAGE_DURATION_MS = 180000; // 3 minutos por imagem
+    const REFRESH_INTERVAL_MS = 300000; // Verifica novos arquivos a cada 5 minutos
+
+    let mediaList = [];
+    let currentIndex = 0;
+    let imageTimer = null;
+    let isRunning = false;
+
+    async function fetchMediaList() {
+      try {
+        const response = await fetch(API_LIST_URL);
+        const files = await response.json();
+        
+        if (Array.isArray(files) && files.length > 0) {
+          mediaList = files;
+          if (!isRunning) {
+            isRunning = true;
+            playCurrentMedia();
+          }
+        }
+      } catch (error) {
+        console.error("Erro ao buscar lista do Drive:", error);
+      }
+      
+      setTimeout(fetchMediaList, REFRESH_INTERVAL_MS);
+    }
+
+    function playCurrentMedia() {
+      if (mediaList.length === 0) return;
+      if (currentIndex >= mediaList.length) currentIndex = 0;
+
+      clearTimeout(imageTimer);
+      const container = document.getElementById('player-container');
+      container.innerHTML = '';
+
+      const item = mediaList[currentIndex];
+      // Chama a API Route da própria Vercel (/api/stream) para evitar bloqueios de CORS/CORB
+      const mediaUrl = `/api/stream?id=${item.id}`;
+
+      if (item.type === 'image') {
+        const img = document.createElement('img');
+        img.src = mediaUrl;
+        img.onerror = nextMedia;
+        container.appendChild(img);
+
+        imageTimer = setTimeout(nextMedia, IMAGE_DURATION_MS);
+      } 
+      else if (item.type === 'video') {
+        const video = document.createElement('video');
+        video.src = mediaUrl;
+        video.autoplay = true;
+        video.muted = true; // Garante autoplay imediato em qualquer navegador/TV
+        video.playsInline = true;
+        
+        // Avança exatamente no milissegundo em que o vídeo termina
+        video.onended = nextMedia;
+        
+        // Se ocorrer falha no arquivo, pula sem travar a tela
+        video.onerror = () => {
+          console.error("Erro ao reproduzir vídeo:", item.name);
+          nextMedia();
+        };
+
+        container.appendChild(video);
+        video.play().catch(err => console.warn("Autoplay bloqueado:", err));
+      }
+    }
+
+    function nextMedia() {
+      currentIndex = (currentIndex + 1) % mediaList.length;
+      playCurrentMedia();
+    }
+
+    // Inicia o carrossel
+    fetchMediaList();
+  </script>
+</body>
+</html>
